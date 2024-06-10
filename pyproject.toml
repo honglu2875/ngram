@@ -1,0 +1,24 @@
+[build-system]
+requires = [
+    "setuptools==69.0.3", 
+    "wheel", 
+    "Cython==3.0.10", 
+    "numpy==1.26.3",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ngram"
+version = "0.0"
+dependencies = [
+    "Cython==3.0.10",
+    "numpy==1.26.3",
+]
+requires-python = ">=3.10"
+authors = [
+  {name = "Honglu Fan", email = "honglu2875@gmail.com"},
+]
+description = "A simple ngram model using Trie."
+readme = "README.md"
+license = {file = "LICENSE"}
+
