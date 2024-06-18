@@ -100,8 +100,8 @@ T read_elem_move(std::vector<unsigned char>::iterator &begin) {
 }
 
 std::vector<vocab_size_t> TrieNode::get_singleton_children() {
-	// Singleton are defined as leaves who are visited only once.
-	// Packing them together as 2 bytes each reduce overhead significantly for 
+	// Singletons are defined as leaves who are visited only once.
+	// Packing them together as 2-byte each reduces overhead significantly for 
 	// certain types of ngram Trie.
 	std::vector<vocab_size_t> output;
 	for (auto it = this->_children.begin(); it != this->_children.end(); it++) {

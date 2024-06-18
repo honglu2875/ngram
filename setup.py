@@ -1,8 +1,7 @@
-from setuptools import setup, Extension
+import numpy
 from Cython.Build import cythonize
 from Cython.Distutils import build_ext
-import numpy
-
+from setuptools import Extension, setup
 
 code_root = "src/ngram"
 include_root = "csrc/include"

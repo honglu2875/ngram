@@ -12,18 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from libcpp.unordered_map cimport unordered_map
-from cython.operator cimport dereference, postincrement
 cimport cython
+cimport openmp
+from cython.operator cimport dereference, postincrement
+from cython.parallel cimport prange
+from libc.stdlib cimport free, malloc
+from libc.string cimport memcpy
 from libcpp cimport bool
 from libcpp.atomic cimport atomic
+from libcpp.unordered_map cimport unordered_map
 from libcpp.vector cimport vector
-from libc.stdlib cimport malloc, free
-cimport openmp
-from cython.parallel cimport prange
+
 import numpy as np
+
 cimport numpy as np
 
+import json
+import os
 
 ctypedef cython.float cfloat
 ctypedef unsigned char cbyte
@@ -97,6 +102,36 @@ cdef void _preallocate(long preallocate_depth, TrieNode *root, vocab_size_t voca
                     queue.push_back(queue[p].get(i))
                     depths.push_back(depths[p] + 1)
             p += 1
+
+cdef _read_tree_size(char *s):
+    cdef count_t c
+    memcpy(&c, s, sizeof(count_t))
+    return c
+
+def _merge_serialized(py_list: list[bytes], root_count: int) -> bytes:
+    cdef char* buffer
+    vocab_size = len(py_list)
+    singletons = []
+    children_count = 0
+
+    for i in range(vocab_size):
+        if py_list[i] is not None:
+            children_count += 1
+            buffer = py_list[i]
+            if _read_tree_size(buffer) == 1:
+                singletons.append(i)
+
+    def _key_bytes(c):
+        return c.to_bytes(sizeof(vocab_size_t), byteorder='little')
+
+    prefix = root_count.to_bytes(sizeof(count_t), byteorder='little') + \
+             children_count.to_bytes(sizeof(vocab_size_t), byteorder='little') + \
+             len(singletons).to_bytes(sizeof(vocab_size_t), byteorder='little')
+    singleton_bytes = b"".join([_key_bytes(c) for c in singletons])
+    children_bytes = [_key_bytes(i) + c for i, c in enumerate(py_list) if c is not None]
+        
+    return prefix + singleton_bytes + b"".join(children_bytes)
+
 
 cdef class _NGramModel:
     cdef:
@@ -190,24 +225,7 @@ cdef class _NGramModel:
 
     def serialize_trie_as_bytes(self):
         py_list = self.serialize_trie_as_list()
-        singletons = []
-        children_count = 0
-        for i in range(self.vocab_size):
-            if self.root.contains(i):
-                children_count += 1
-                if self.root.get(i).count() == 1:
-                    singletons.append(i)
-
-        def _key_bytes(c):
-            return c.to_bytes(sizeof(vocab_size_t), byteorder='little')
-
-        prefix = self.root.count().to_bytes(sizeof(count_t), byteorder='little') + \
-                 children_count.to_bytes(sizeof(vocab_size_t), byteorder='little') + \
-                 len(singletons).to_bytes(sizeof(vocab_size_t), byteorder='little')
-        singleton_bytes = b"".join([_key_bytes(c) for c in singletons])
-        children_bytes = [_key_bytes(i) + c for i, c in enumerate(py_list) if c is not None]
-        
-        return prefix + singleton_bytes + b"".join(children_bytes)
+        return _merge_serialized(py_list, len(self))
 
     @classmethod
     def from_bytes(cls, bytes input, long n, vocab_size_t vocab_size, long preallocate_depth):
@@ -245,8 +263,43 @@ class NGramModel:
         else:
             return self._model.serialize_trie_as_bytes()
 
+    def save(self, path: str):
+        if os.path.exists(path):
+            raise ValueError(f"A file or directory already exists at the path {path}.")
+        serialized = self.serialize(as_list=True)
+        os.makedirs(path, exist_ok=True)
+        #for i in prange(self.vocab_size, schedule='dynamic', nogil=True, chunksize=1):
+        for i in range(self.vocab_size):
+            with open(os.path.join(path, str(i)), "wb") as f:
+                f.write(serialized[i])
+
+        with open(os.path.join(path, "config.json"), "w") as f:
+            json.dump(
+                {
+                    "n": self.n,
+                    "vocab_size": self.vocab_size,
+                    "preallocate_depth": self.preallocate_depth,
+                    "root_count": len(self),
+                },
+                f
+            )
+
     @classmethod
     def from_bytes(cls, input: bytes, n: int, vocab_size: int, preallocate_depth: int = 0):
         wrapped = cls(n, vocab_size, preallocate_depth)
         wrapped._model = _NGramModel.from_bytes(input, n, vocab_size, preallocate_depth)
         return wrapped
+
+    @classmethod
+    def load(cls, path: str):
+        if not os.path.isdir(path):
+            raise ValueError(f"load method expects a directory {path}.")
+        config = json.load(open(os.path.join(path, "config.json"), "r"))
+        n, vocab_size, preallocate_depth, root_count = config["n"], config["vocab_size"], config["preallocate_depth"], config["root_count"]
+        serialized = [None] * vocab_size 
+        #for i in prange(vocab_size, schedule="dynamic", nogil=True, chunksize=1):
+        for i in range(vocab_size):
+            with open(os.path.join(path, str(i)), "rb") as f:
+                serialized[i] = bytes(f.read())
+
+        return cls.from_bytes(_merge_serialized(serialized, root_count), n, vocab_size, preallocate_depth)

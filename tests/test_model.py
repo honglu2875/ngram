@@ -1,9 +1,10 @@
-from ngram import NGramModel
 import time
-import pytest
-import numpy as np
 from pathlib import Path
 
+import numpy as np
+import pytest
+
+from ngram import NGramModel
 
 test_root = Path(__file__).parent.resolve()
 @pytest.mark.parametrize(("vocab, pre, ans"), ((50432, 0, 3075), (50432, 1, 3075), (10, 1, 0), (10, 2, 0)))
