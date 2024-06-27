@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from ngram import NGramModel
+from ngram import NGramTrie
 
 test_root = Path(__file__).parent.resolve()
 
@@ -12,7 +12,7 @@ def model():
     vocab = 50432
     bin_path = str(test_root / "data.bin")
     data = np.load(open(bin_path, "rb"))
-    model = NGramModel(5, vocab, 0)
+    model = NGramTrie(5, vocab, 0)
     model.train(data)
     return model
 
@@ -22,7 +22,7 @@ def small_model():
     new_vocab = 100
     bin_path = str(test_root / "data.bin")
     data = np.load(open(bin_path, "rb"))
-    model = NGramModel(5, new_vocab, 0)
+    model = NGramTrie(5, new_vocab, 0)
     model.train(data % new_vocab)
     return model
 

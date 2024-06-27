@@ -11,7 +11,7 @@ openmp_arg = "-fopenmp"
 extensions = [
     Extension(
         "ngram", 
-        sources=[cpp_root + "/nodes.cpp", code_root + "/ngram.pyx",], 
+        sources=[cpp_root + "/nodes.cpp", code_root + "/ngram_trie.pyx",], 
         include_dirs=[numpy.get_include(), include_root, cpp_root], 
         extra_compile_args=["-O3", openmp_arg], 
         language="c++",

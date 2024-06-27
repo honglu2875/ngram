@@ -18,7 +18,7 @@ requires-python = ">=3.10"
 authors = [
   {name = "Honglu Fan", email = "honglu2875@gmail.com"},
 ]
-description = "A simple ngram model using Trie."
+description = "High efficient ngram model implementations"
 readme = "README.md"
 license = {file = "LICENSE"}
 

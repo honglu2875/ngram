@@ -133,7 +133,7 @@ def _merge_serialized(py_list: list[bytes], root_count: int) -> bytes:
     return prefix + singleton_bytes + b"".join(children_bytes)
 
 
-cdef class _NGramModel:
+cdef class _NGramTrie:
     cdef:
         TrieNode *root
         long n
@@ -188,7 +188,7 @@ cdef class _NGramModel:
                     buffer[i] = node.get(i).count() / node.count()
                 i += 1
 
-    def set_root_from_buffer(self, const cbyte[:] buffer, int size):
+    def set_root_from_buffer(self, const cbyte[:] buffer, long long size):
         self.root = TrieNode.deserialize(&buffer[0], size)
 
     cdef count_t get_size(self, NGram ngram):
@@ -201,7 +201,7 @@ cdef class _NGramModel:
         cdef np.ndarray[ndim=1, dtype=cfloat, mode='c'] prob_array = np.zeros((self.vocab_size,), dtype=np.float32)
 
         buffer = cython.declare(cfloat[:], prob_array) 
-        _NGramModel._get_distribution(buffer, self.root, ngram, self.vocab_size)
+        _NGramTrie._get_distribution(buffer, self.root, ngram, self.vocab_size)
         return prob_array
     
     def serialize_trie_as_list(self):
@@ -236,14 +236,14 @@ cdef class _NGramModel:
 
         return model
         
-class NGramModel:
-    """The Python wrapper of the cdef class _NGramModel"""
+class NGramTrie:
+    """The Python wrapper of the cdef class _NGramTrie"""
     def __init__(self, n: int, vocab_size: int, preallocate_depth: int = 0):
         self.n = n
         self.vocab_size = vocab_size
         self.preallocate_depth = preallocate_depth
 
-        self._model = _NGramModel(n, vocab_size, preallocate_depth)
+        self._model = _NGramTrie(n, vocab_size, preallocate_depth)
 
     def train(self, data: np.ndarray):
         self._model.train(data)
@@ -270,8 +270,9 @@ class NGramModel:
         os.makedirs(path, exist_ok=True)
         #for i in prange(self.vocab_size, schedule='dynamic', nogil=True, chunksize=1):
         for i in range(self.vocab_size):
-            with open(os.path.join(path, str(i)), "wb") as f:
-                f.write(serialized[i])
+            if serialized[i] is not None:
+                with open(os.path.join(path, str(i)), "wb") as f:
+                    f.write(serialized[i])
 
         with open(os.path.join(path, "config.json"), "w") as f:
             json.dump(
@@ -287,7 +288,7 @@ class NGramModel:
     @classmethod
     def from_bytes(cls, input: bytes, n: int, vocab_size: int, preallocate_depth: int = 0):
         wrapped = cls(n, vocab_size, preallocate_depth)
-        wrapped._model = _NGramModel.from_bytes(input, n, vocab_size, preallocate_depth)
+        wrapped._model = _NGramTrie.from_bytes(input, n, vocab_size, preallocate_depth)
         return wrapped
 
     @classmethod
@@ -299,7 +300,10 @@ class NGramModel:
         serialized = [None] * vocab_size 
         #for i in prange(vocab_size, schedule="dynamic", nogil=True, chunksize=1):
         for i in range(vocab_size):
-            with open(os.path.join(path, str(i)), "rb") as f:
+            filepath = os.path.join(path, str(i))
+            if not os.path.exists(filepath):
+                continue
+            with open(filepath, "rb") as f:
                 serialized[i] = bytes(f.read())
 
         return cls.from_bytes(_merge_serialized(serialized, root_count), n, vocab_size, preallocate_depth)
