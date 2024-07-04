@@ -36,7 +36,7 @@ ctypedef unsigned short vocab_size_t
 ctypedef np.uint16_t np_vocab_size_t
 ctypedef unsigned long long count_t
 ctypedef np_vocab_size_t[:] NGram
-ctypedef np_vocab_size_t[:, :] NgramBatch
+ctypedef np_vocab_size_t[:, :] NGramBatch
 
 cdef extern from "nodes.h":
     cdef cppclass TrieNode:
@@ -203,6 +203,19 @@ cdef class _NGramTrie:
         buffer = cython.declare(cfloat[:], prob_array) 
         _NGramTrie._get_distribution(buffer, self.root, ngram, self.vocab_size)
         return prob_array
+
+    def get_dist(self, NGramBatch samples):
+        cdef np.ndarray[ndim=3, dtype=cfloat, mode='c'] prob_array = np.zeros((samples.shape[0], samples.shape[1], self.vocab_size,), dtype=np.float32)
+        cdef int i
+        cdef int j
+        cdef int _len = samples.shape[1]
+
+        buffer = cython.declare(cfloat[:,:,:], prob_array)
+        for i in prange(samples.shape[0], schedule='dynamic', nogil=True, chunksize=1):
+            for j in range(samples.shape[1]):
+                _NGramTrie._get_distribution(buffer[i, j, :], self.root, samples[i, max(j - self.n + 2, 0) : j+1], self.vocab_size)
+        return prob_array
+
     
     def serialize_trie_as_list(self):
         cdef vector[vector[cbyte]] outputs
@@ -253,6 +266,9 @@ class NGramTrie:
 
     def get_distribution(self, ngram: np.ndarray):
         return self._model.get_distribution(ngram)
+
+    def get_dist(self, data: np.ndarray):
+        return self._model.get_dist(data)
 
     def __len__(self):
         return len(self._model)
