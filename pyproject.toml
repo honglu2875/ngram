@@ -1,24 +1,46 @@
 [build-system]
 requires = [
-    "setuptools==69.0.3", 
-    "wheel", 
-    "Cython==3.0.10", 
-    "numpy==1.26.3",
+    "setuptools>=64",
+    "wheel",
+    "Cython>=3.0",
+    "numpy>=1.23",
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ngram"
-version = "0.0"
-dependencies = [
-    "Cython==3.0.10",
-    "numpy==1.26.3",
-]
-requires-python = ">=3.10"
-authors = [
-  {name = "Honglu Fan", email = "honglu2875@gmail.com"},
-]
-description = "High efficient ngram model implementations"
+version = "0.1.0"
+description = "Infini-gram: disk-backed suffix-array n-gram and unbounded-n indexes over token corpora"
 readme = "README.md"
-license = {file = "LICENSE"}
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Honglu Fan", email = "honglu2875@gmail.com" }]
+keywords = ["ngram", "infini-gram", "suffix array", "language model", "corpus"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Cython",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["numpy>=1.23"]
 
+[project.optional-dependencies]
+tokenizers = ["transformers>=4.30", "tiktoken>=0.5"]
+jsonl = ["zstandard>=0.20"]
+dev = ["pytest>=7", "zstandard>=0.20"]
+
+[project.scripts]
+ngram = "ngram.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/honglu2875/ngram"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error::DeprecationWarning"]
